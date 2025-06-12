@@ -1,4 +1,4 @@
-# aks-health-guard-clean
+# aks-health-guard
 // TODO(user): Add simple overview of use/purpose
 
 ## Description
