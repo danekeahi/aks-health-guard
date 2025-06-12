@@ -1,0 +1,11 @@
+apiVersion: monitoring.healthcheck.dev/v1
+kind: Workload
+metadata:
+  labels:
+    app.kubernetes.io/name: aks-health-guard-clean
+    app.kubernetes.io/managed-by: kustomize
+  name: workload-sample
+spec:
+  # TODO(user): Add fields here
+  jobName: "my-fake-job"
+  health: true

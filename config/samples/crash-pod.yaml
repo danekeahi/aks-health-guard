@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: crashme
+  labels:
+    job-name: my-fake-job
+spec:
+  restartPolicy: Always
+  containers:
+  - name: crash-container
+    image: busybox
+    command: ["/bin/sh", "-c", "exit 1"]
