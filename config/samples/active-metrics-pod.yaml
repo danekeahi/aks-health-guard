@@ -1,0 +1,19 @@
+# active-metrics-pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: active-metrics-pod
+  labels:
+    job-name: my-fake-job
+spec:
+  containers:
+  - name: cpu-burner
+    image: busybox
+    command: ["/bin/sh", "-c", "while true; do echo 'Running'; done"]
+    resources:
+      requests:
+        cpu: "10m"
+        memory: "20Mi"
+      limits:
+        cpu: "100m"
+        memory: "50Mi"

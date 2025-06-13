@@ -1,0 +1,16 @@
+# pending-pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pending-pod
+  labels:
+    job-name: my-fake-job
+spec:
+  containers:
+  - name: overload
+    image: busybox
+    command: ["sleep", "3600"]
+    resources:
+      requests:
+        cpu: "1000"  # Intentionally too high
+        memory: "1Gi"
