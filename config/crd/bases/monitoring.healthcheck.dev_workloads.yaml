@@ -39,21 +39,25 @@ spec:
           spec:
             description: WorkloadSpec defines the desired state of Workload.
             properties:
-              foo:
-                description: Foo is an example field of Workload. Edit workload_types.go
-                  to remove/update
-                type: string
-              health:
-                type: boolean
               jobName:
                 description: INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
                 type: string
             required:
-            - health
             - jobName
             type: object
           status:
             description: WorkloadStatus defines the observed state of Workload.
+            properties:
+              evaluated:
+                description: |-
+                  INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
+                  Important: Run "make" to regenerate code after modifying this file
+                type: boolean
+              health:
+                type: boolean
+            required:
+            - evaluated
+            - health
             type: object
         type: object
     served: true

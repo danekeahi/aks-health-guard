@@ -27,17 +27,16 @@ import (
 type WorkloadSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	JobName string `json:"jobName"`
-	Health  bool   `json:"health"` // Health status of the workload, true if healthy, false otherwise
-	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of Workload. Edit workload_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// Important: Run "make" to regenerate code after modifying this file
 }
 
 // WorkloadStatus defines the observed state of Workload.
 type WorkloadStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+	Evaluated bool `json:"evaluated"`
+	Health    bool `json:"health"` // Health status of the workload, true if healthy, false otherwise
 }
 
 // +kubebuilder:object:root=true

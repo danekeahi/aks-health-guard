@@ -126,9 +126,9 @@ func checkAndUpdateWorkloadHealth(c client.Client) {
 		isHealthy := checkPodHealth(metrics, wl.Spec.JobName)
 
 		// Update the workload health status if it has changed
-		if wl.Spec.Health != isHealthy {
-			wl.Spec.Health = isHealthy
-			if err := c.Update(ctx, &wl); err != nil {
+		if wl.Status.Health != isHealthy {
+			wl.Status.Health = isHealthy
+			if err := c.Status().Update(ctx, &wl); err != nil {
 				fmt.Println("Failed to update workload health:", err)
 			} else {
 				fmt.Printf("Updated %s health to %v\n", wl.Name, isHealthy)

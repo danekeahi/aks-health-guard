@@ -157,8 +157,29 @@ func (r *WorkloadReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// 2. Log the workload details
-	if !workload.Spec.Health {
+	// 2. Initialize workload status on first reconciliation
+	// Check if this workload has been evaluated before - if not, set default healthy state
+	if !workload.Status.Evaluated {
+		log.Info("Initializing workload status to healthy", "JobName", workload.Spec.JobName)
+		
+		// Set the workload as healthy by default when first created
+		workload.Status.Health = true
+		// Mark as evaluated so we don't reinitialize on subsequent reconciliations
+		workload.Status.Evaluated = true
+		
+		// Persist the status changes to the Kubernetes API server
+		if err := r.Status().Update(ctx, &workload); err != nil {
+			log.Error(err, "Failed to initialize workload status")
+			return ctrl.Result{}, err
+		}
+		
+		// Requeue the reconciliation to process the workload with its new status
+		// This ensures the next reconciliation cycle will see the initialized status
+		return ctrl.Result{Requeue: true}, nil
+	}
+
+	// 3. Log the workload details
+	if !workload.Status.Health {
 		log.Info("Workload is UNHEALTHY", "JobName", workload.Spec.JobName)
 
 		// call azure abort
@@ -168,6 +189,7 @@ func (r *WorkloadReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		} else {
 			log.Info("Successfully aborted latest AKS operation")
 		}
+
 	} else {
 		log.Info("Workload is healthy", "JobName", workload.Spec.JobName)
 	}
