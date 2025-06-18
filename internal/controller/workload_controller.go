@@ -107,6 +107,8 @@ func abortLatestAKSOperation(ctx context.Context, resourceGroupName, clusterName
 	//}
 
 	// 2. Acquire a credential using 'az login' or env vars
+	// will need a managed identity for this
+	// assign role to contributor to managed cluster
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
 		return fmt.Errorf("failed to get Azure credential: %w", err)
@@ -148,13 +150,14 @@ func abortLatestAKSOperation(ctx context.Context, resourceGroupName, clusterName
 func (r *WorkloadReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrl.LoggerFrom(ctx)
 
-	// TODO(user): your logic here
+	// 1. Get the resource group and cluster name from the request
 	var workload monitoringv1.Workload
 	if err := r.Get(ctx, req.NamespacedName, &workload); err != nil {
 		log.Error(err, "unable to fetch Workload")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	// 2. Log the workload details
 	if !workload.Spec.Health {
 		log.Info("Workload is UNHEALTHY", "JobName", workload.Spec.JobName)
 

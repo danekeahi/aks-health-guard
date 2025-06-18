@@ -10,3 +10,4 @@ spec:
   - name: crash-container
     image: busybox
     command: ["/bin/sh", "-c", "exit 1"]
+    
