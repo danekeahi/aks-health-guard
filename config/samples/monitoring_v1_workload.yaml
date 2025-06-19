@@ -8,4 +8,8 @@ metadata:
 spec:
   # TODO(user): Add fields here
   jobName: "my-fake-job"
+  podCrashThreshold: 3
+  maxRestartCount: 5
+  maxPendingDuration: 60000000000
+status: 
   health: true

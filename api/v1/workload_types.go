@@ -17,6 +17,8 @@ limitations under the License.
 package v1
 
 import (
+	"time"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -26,18 +28,20 @@ import (
 // WorkloadSpec defines the desired state of Workload.
 type WorkloadSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	JobName string `json:"jobName"`
-	Health  bool   `json:"health"` // Health status of the workload, true if healthy, false otherwise
+	JobName            string        `json:"jobName,omitempty"`
+	PodCrashThreshold  int32         `json:"podCrashThreshold,omitempty"`
+	MaxCPUUsage        string        `json:"maxCPUUsage,omitempty"`        // e.g. "50%"
+	MaxMemoryUsage     string        `json:"maxMemoryUsage,omitempty"`     // e.g. "128Mi"
+	MaxRestartCount    int32         `json:"maxRestartCount,omitempty"`    //
+	MaxPendingDuration time.Duration `json:"maxPendingDuration,omitempty"` //
 	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of Workload. Edit workload_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
 }
 
 // WorkloadStatus defines the observed state of Workload.
 type WorkloadStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+	Health bool `json:"health"` // Health status of the workload, true if healthy, false otherwise
 }
 
 // +kubebuilder:object:root=true

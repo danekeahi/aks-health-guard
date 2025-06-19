@@ -23,10 +23,10 @@ import (
 )
 
 const (
-	subscriptionID    = "8ecadfc9-d1a3-4ea4-b844-0d9f87e4d7c8"
+	subscriptionID    = "feb5b150-60fe-4441-be73-8c02a524f55a"
 	tenantID          = "72f988bf-86f1-41af-91ab-2d7cd011db47"
-	resourceGroupName = "aks-health-rg"
-	resourceName      = "aks-health-cluster"
+	resourceGroupName = "tanamutu-rg"
+	resourceName      = "test"
 )
 
 var (
@@ -103,12 +103,12 @@ func checkAndUpdateWorkloadHealth(c client.Client) {
 
 	// Iterate through each workload and check its health
 	for _, wl := range workloadList.Items {
-		isHealthy := checkPodHealth(kubeClient, wl.Spec.JobName)
+		isHealthy := checkPodHealth(kubeClient, wl.Spec)
 
 		// Update the workload health status if it has changed
-		if wl.Spec.Health != isHealthy {
-			wl.Spec.Health = isHealthy
-			if err := c.Update(ctx, &wl); err != nil {
+		if wl.Status.Health != isHealthy {
+			wl.Status.Health = isHealthy
+			if err := c.Status().Update(ctx, &wl); err != nil {
 				fmt.Println("Failed to update workload health:", err)
 			} else {
 				fmt.Printf("Updated %s health to %v\n", wl.Name, isHealthy)
@@ -214,37 +214,66 @@ func getPodMetrics(kubeClient *kubernetes.Clientset, metricsClient *metricsclien
 }
 
 // checkPodHealth checks the health of pods associated with a specific job
-func checkPodHealth(client *kubernetes.Clientset, jobName string) bool {
-	fmt.Println("Checking health for job:", jobName)
+func checkPodHealth(client *kubernetes.Clientset, spec monitoringv1.WorkloadSpec) bool {
+	fmt.Println("Checking health for job:", spec.JobName)
 	// List all pods in the cluster
-	pods, err := client.CoreV1().Pods("").List(context.Background(), metav1.ListOptions{})
+	pods, err := client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{}) // specify namespace if needed
 	if err != nil {
 		fmt.Println("Error listing pods:", err)
 		return true // Assume healthy if we can't check
 	}
 
+	now := time.Now()
+
 	// Check each pod for health status
 	for _, pod := range pods.Items {
 		fmt.Println("Checking pod:", pod.Name, "with labels:", pod.Labels)
-		// Check if the pod belongs to the specified job
+		// Only look at pods that belong to the specified job
 		// Assuming the job name is stored in the "job-name" label
-		if pod.Labels["job-name"] != jobName {
+		if pod.Labels["job-name"] != spec.JobName {
 			continue
 		}
 
-		// Check if the pod is in a healthy state
-		if pod.Status.Phase == "Failed" || pod.Status.Phase == "Unknown" {
-			fmt.Println("Pod is in Failed or Unknown state:", pod.Name)
+		//--- Restart Count Check ---
+		var restartCount int32
+		for _, cs := range pod.Status.ContainerStatuses {
+			restartCount += cs.RestartCount
+		}
+		if spec.MaxRestartCount > 0 && restartCount > spec.MaxRestartCount {
+			fmt.Printf("Pod %s exceeded restart threshold: %d > %d\n", pod.Name, restartCount, spec.MaxRestartCount)
 			return false
 		}
 
-		// Check if the pod is pending for too long
+		// --- Crash Loop Check ---
 		for _, cs := range pod.Status.ContainerStatuses {
 			if cs.State.Waiting != nil && cs.State.Waiting.Reason == "CrashLoopBackOff" {
-				fmt.Println("Container is in CrashLoopBackOff state:", cs.Name, "in pod", pod.Name)
+				fmt.Printf("Pod %s container %s is in CrashLoopBackOff\n", pod.Name, cs.Name)
+				if spec.PodCrashThreshold > 0 {
+					fmt.Println("CrashLoopBackOff is considered unhealthy")
+					return false
+				}
+			}
+		}
+
+		// --- Pending Time Check ---
+		if pod.Status.Phase == corev1.PodPending {
+			pendingDuration := now.Sub(pod.CreationTimestamp.Time)
+			if spec.MaxPendingDuration > 0 && pendingDuration > spec.MaxPendingDuration {
+				fmt.Printf("Pod %s is pending too long: %s > %s\n", pod.Name, pendingDuration, spec.MaxPendingDuration)
 				return false
 			}
 		}
+
+		// --- CPU/Memory Usage Check ---
+		// NOTE: This requires metrics client data to be passed in, or fetched earlier
+		// If you want to add CPU/Memory checks here, you'd need to pass PodMetrics too.
+		// Example:
+		//   cpu := resource.MustParse("400m")
+		//   maxCPU := resource.MustParse(spec.MaxCPUUsage)
+		//   if cpu.Cmp(maxCPU) > 0 { ... }
+
+		// Currently, CPU/Memory checks would need integration with metrics-server metrics,
+		// which you already fetch in another function (getPodMetrics).
 	}
 
 	return true

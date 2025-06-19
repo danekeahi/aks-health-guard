@@ -19,13 +19,16 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	// "net/http"
 	// "os"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	// logf "sigs.k8s.io/controller-runtime/pkg/log"
+
+	//"sigs.k8s.io/controller-runtime/pkg/log"
 
 	monitoringv1 "github.com/danekeahi/aks-health-guard/api/v1"
 
@@ -40,10 +43,10 @@ type WorkloadReconciler struct {
 }
 
 const (
-	subscriptionID = "8ecadfc9-d1a3-4ea4-b844-0d9f87e4d7c8"
-	// tenantID          = "72f988bf-86f1-41af-91ab-2d7cd011db47"
-	resourceGroupName = "aks-health-rg"
-	clusterName       = "aks-health-cluster"
+	subscriptionID    = "feb5b150-60fe-4441-be73-8c02a524f55a"
+	tenantID          = "72f988bf-86f1-41af-91ab-2d7cd011db47"
+	resourceGroupName = "tanamutu-rg"
+	clusterName       = "test"
 )
 
 // func abortLatestAKSOperation(subscriptionID, resourceGroup, clusterName string) error {
@@ -155,13 +158,19 @@ func (r *WorkloadReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if !workload.Spec.Health {
+	//workload.Status.Health = true // default to healthy
+
+	if !workload.Status.Health {
 		log.Info("Workload is UNHEALTHY", "JobName", workload.Spec.JobName)
 
 		// call azure abort
 		err := abortLatestAKSOperation(ctx, resourceGroupName, clusterName)
 		if err != nil {
-			log.Error(err, "Failed to abort latest AKS operation")
+			if strings.Contains(err.Error(), "ProvisioningState is Canceled") {
+				log.Info("No active AKS operation to abort — already canceled or completed")
+			} else {
+				log.Error(err, "Failed to abort latest AKS operation")
+			}
 		} else {
 			log.Info("Successfully aborted latest AKS operation")
 		}
