@@ -41,11 +41,6 @@ const (
 	tenantID          = "72f988bf-86f1-41af-91ab-2d7cd011db47"
 	resourceGroupName = "aks-health-rg"
 	resourceName      = "aks-health-cluster"
-
-	MaxRestartCount     = 10
-	MaxPendingDuration  = 1 * time.Minute
-	MaxCPUUsageNano     = 200_000_000       // 200m = 0.2 cores
-	MaxMemoryUsageBytes = 200 * 1024 * 1024 // 200Mi
 )
 
 var (
@@ -123,7 +118,7 @@ func checkAndUpdateWorkloadHealth(c client.Client) {
 
 	// Iterate through each workload and check its health
 	for _, wl := range workloadList.Items {
-		isHealthy := checkPodHealth(metrics, wl.Spec.JobName)
+		isHealthy := checkPodHealth(metrics, wl.Spec.JobName, wl.Spec.Thresholds)
 
 		// Update the workload health status if it has changed
 		if wl.Status.Health != isHealthy {
@@ -286,7 +281,7 @@ func getPodMetrics(kubeClient *kubernetes.Clientset, metricsClient *metricsclien
 // }
 
 // checkPodHealth evaluates the health of a workload based on collected metrics
-func checkPodHealth(metrics []PodMetrics, jobName string) bool {
+func checkPodHealth(metrics []PodMetrics, jobName string, thresholds monitoringv1.Thresholds) bool {
 	fmt.Println("Checking health for job:", jobName)
 	for _, m := range metrics {
 		// Match pods by job-name label convention (you can refine this)
@@ -295,11 +290,11 @@ func checkPodHealth(metrics []PodMetrics, jobName string) bool {
 		}
 
 		// Parse and check CPU usage
-		if m.CPUUsage != "" {
+		if m.CPUUsage != "" && thresholds.CPUUsageNano > 0 {
 			cpuQty, err := resource.ParseQuantity(m.CPUUsage)
 			if err == nil {
 				fmt.Printf("Parsed CPU quantity for pod %s: %dm\n", m.PodName, cpuQty.MilliValue())
-				if cpuQty.MilliValue()*1_000_000 > MaxCPUUsageNano {
+				if cpuQty.MilliValue()*1_000_000 > thresholds.CPUUsageNano {
 					fmt.Printf("Pod %s CPU usage too high: %s\n", m.PodName, m.CPUUsage)
 					return false
 				}
@@ -311,11 +306,11 @@ func checkPodHealth(metrics []PodMetrics, jobName string) bool {
 		}
 
 		// Parse and check memory usage
-		if m.MemoryUsage != "" {
+		if m.MemoryUsage != "" && thresholds.MemoryUsageBytes > 0 {
 			memQty, err := resource.ParseQuantity(m.MemoryUsage)
 			if err == nil {
 				fmt.Printf("Parsed memory quantity for pod %s: %d bytes\n", m.PodName, memQty.Value())
-				if memQty.Value() > MaxMemoryUsageBytes {
+				if memQty.Value() > thresholds.MemoryUsageBytes {
 					fmt.Printf("Pod %s memory usage too high: %s\n", m.PodName, m.MemoryUsage)
 					return false
 				}
@@ -326,14 +321,20 @@ func checkPodHealth(metrics []PodMetrics, jobName string) bool {
 			fmt.Printf("No memory usage reported for pod %s\n", m.PodName)
 		}
 
-		if m.RestartCount > MaxRestartCount {
-			fmt.Printf("Pod %s has too many restarts: %d\n", m.PodName, m.RestartCount)
-			return false
+		if thresholds.MaxRestartCount > 0 && m.RestartCount > 0 {
+			if m.RestartCount > thresholds.MaxRestartCount {
+				fmt.Printf("Pod %s has too many restarts: %d\n", m.PodName, m.RestartCount)
+				return false
+			}
 		}
-		if m.PendingDuration > MaxPendingDuration {
-			fmt.Printf("Pod %s has been pending too long: %v\n", m.PodName, m.PendingDuration)
-			return false
+
+		if m.PendingDuration > 0 && thresholds.MaxPendingTime.Duration > 0 {
+			if m.PendingDuration > thresholds.MaxPendingTime.Duration {
+				fmt.Printf("Pod %s has been pending too long: %v\n", m.PodName, m.PendingDuration)
+				return false
+			}
 		}
+
 		if m.IsCrashed {
 			fmt.Printf("Pod %s is crashed\n", m.PodName)
 			return false

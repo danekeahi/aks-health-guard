@@ -7,6 +7,11 @@ metadata:
   name: workload-sample
 spec:
   jobName: "my-fake-job"
+  thresholds:
+    cpuUsageNano: 200000000 # 200m
+    memoryUsageBytes: 209715200 # 200Mi
+    maxRestartCount: 10
+    maxPendingTime: "60s"
 status:
   health: true
   evaluated: false

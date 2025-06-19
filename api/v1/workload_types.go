@@ -23,11 +23,18 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+type Thresholds struct {
+	CPUUsageNano     int64           `json:"cpuUsageNano,omitempty"`     // CPU usage in nanoseconds (e.g. 200_000_000)
+	MemoryUsageBytes int64           `json:"memoryUsageBytes,omitempty"` // Memory usage in bytes (e.g. 200 * 1024 * 1024)
+	MaxRestartCount  int32           `json:"maxRestartCount,omitempty"`  // Maximum allowed restarts before considering unhealthy (e.g. 10)
+	MaxPendingTime   metav1.Duration `json:"maxPendingTime,omitempty"`   // Maximum allowed pending time before considering unhealthy (e.g. 60 seconds)
+}
+
 // WorkloadSpec defines the desired state of Workload.
 type WorkloadSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	JobName string `json:"jobName"`
-
+	JobName    string     `json:"jobName"`
+	Thresholds Thresholds `json:"thresholds,omitempty"` // Thresholds for evaluating workload health
 	// Important: Run "make" to regenerate code after modifying this file
 }
 

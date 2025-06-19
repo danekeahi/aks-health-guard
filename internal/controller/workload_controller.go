@@ -46,53 +46,6 @@ const (
 	clusterName       = "aks-health-cluster"
 )
 
-// func abortLatestAKSOperation(subscriptionID, resourceGroup, clusterName string) error {
-// 	apiVersion := "2025-03-01"
-// 	url := fmt.Sprintf(
-// 		"https://management.azure.com/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ContainerService/managedClusters/%s/abortLatestOperation?api-version=%s",
-// 		subscriptionID, resourceGroup, clusterName, apiVersion,
-// 	)
-
-// 	fmt.Println("[DEBUG] abort URL:", url)
-
-// 	token := "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6IkNOdjBPSTNSd3FsSEZFVm5hb01Bc2hDSDJYRSIsImtpZCI6IkNOdjBPSTNSd3FsSEZFVm5hb01Bc2hDSDJYRSJ9.eyJhdWQiOiJodHRwczovL21hbmFnZW1lbnQuY29yZS53aW5kb3dzLm5ldC8iLCJpc3MiOiJodHRwczovL3N0cy53aW5kb3dzLm5ldC83MmY5ODhiZi04NmYxLTQxYWYtOTFhYi0yZDdjZDAxMWRiNDcvIiwiaWF0IjoxNzQ5NTkyMjk5LCJuYmYiOjE3NDk1OTIyOTksImV4cCI6MTc0OTU5NjU4MiwiX2NsYWltX25hbWVzIjp7Imdyb3VwcyI6InNyYzEifSwiX2NsYWltX3NvdXJjZXMiOnsic3JjMSI6eyJlbmRwb2ludCI6Imh0dHBzOi8vZ3JhcGgud2luZG93cy5uZXQvNzJmOTg4YmYtODZmMS00MWFmLTkxYWItMmQ3Y2QwMTFkYjQ3L3VzZXJzL2Q3MzQzZDg0LTNmNzQtNDZiMS1iZmM0LWY2Y2I3MzE5MWRlYS9nZXRNZW1iZXJPYmplY3RzIn19LCJhY3IiOiIxIiwiYWNycyI6WyJwMSIsImMxMCJdLCJhaW8iOiJBWlFBYS84WkFBQUF3djE1YXljZlRzK2syWGVLYXdWL0hManRxN21iU3NKbkpMc0dRR0ZkUVJnMFV4cjN4cWFrZVNrd2FmM2wybFhmWlpLWkxwOFIyZDMrNndKSHJiREZxbWRRVG1JZ09YR0JzSExzS01EVkViSVU5VGdqM1BISmJMMENURVNjczU0b1Q1KzJJQWhhRnIzVllSdzNRRUFOOFJCQmowTnBUWmRSWHNHVGY1cWQyQitlS1licE9TSktxYWJNWTJQbmFuR2YiLCJhbXIiOlsiZmlkbyIsInJzYSIsIm1mYSJdLCJhcHBpZCI6ImM0NGI0MDgzLTNiYjAtNDljMS1iNDdkLTk3NGU1M2NiZGYzYyIsImFwcGlkYWNyIjoiMCIsImRldmljZWlkIjoiMjUxODQwNzItOTRkNS00OTdjLWI5OWQtNjY5OTdjNjAwZTIxIiwiZmFtaWx5X25hbWUiOiJLZWFoaSIsImdpdmVuX25hbWUiOiJEYW5lIiwiaWR0eXAiOiJ1c2VyIiwiaXBhZGRyIjoiMjAwMTo0ODk4OjgwZTg6Mzg6ZTA0NzpiYmRhOjRkMTI6MmVlOSIsIm5hbWUiOiJEYW5lIEtlYWhpIiwib2lkIjoiZDczNDNkODQtM2Y3NC00NmIxLWJmYzQtZjZjYjczMTkxZGVhIiwib25wcmVtX3NpZCI6IlMtMS01LTIxLTIxMjc1MjExODQtMTYwNDAxMjkyMC0xODg3OTI3NTI3LTgzMTU4NDQ4IiwicHVpZCI6IjEwMDMyMDA0OTc2QTQ5MzAiLCJyaCI6IjEuQVFFQXY0ajVjdkdHcjBHUnF5MTgwQkhiUjBaSWYza0F1dGRQdWtQYXdmajJNQk1hQUNnYUFBLiIsInNjcCI6InVzZXJfaW1wZXJzb25hdGlvbiIsInNpZCI6IjAwNWNmNGY5LWJjMjUtNTJiNy03NzcyLWM0NDU3NGFjZWQyZiIsInN1YiI6ImZ5UllrRzc2UDY5YXBIUEhYWmpoTmxhQXZjYVlxQ1lGYWM3Z3N0N0JJSmMiLCJ0aWQiOiI3MmY5ODhiZi04NmYxLTQxYWYtOTFhYi0yZDdjZDAxMWRiNDciLCJ1bmlxdWVfbmFtZSI6InQtZGFuZWtlYWhpQG1pY3Jvc29mdC5jb20iLCJ1cG4iOiJ0LWRhbmVrZWFoaUBtaWNyb3NvZnQuY29tIiwidXRpIjoidHpQbmRRa3ZRRUN0NHo4V0lwQUpBQSIsInZlciI6IjEuMCIsInhtc19mdGQiOiJCWmJTaXJfVUlUVC1raXRndURMeGdELWFETVVjM1AwNUh1V2FvSWd3WFI4QmRYTnpiM1YwYUMxa2MyMXoiLCJ4bXNfaWRyZWwiOiIxIDYiLCJ4bXNfdGNkdCI6MTI4OTI0MTU0N30.F1R21uddtpaLAlxgyRwpCpfADalOi-zipz-CYi0JGH6yd6eeE-ydL28wMq4goOyfbJqYHyhVpO090s4Rfu_awx_kZInv0iTlNTbJk3okJl1zCdrg-RXwsJ9tHQjzJNxzyt9hJxhiGwpQlZ34l600vNolVpbcbqczUA-o4R9DpGLSAf5WYYqlAdVLWXpVNCIgJmVwKuv-dZoDRbkC1iFMfLPZ9EX5F49MurD3eRKm8MUpWM4umO4TQYbll1AyxEWB5Z6uscxqBitoQSSRvIfvLu_WPeXPH-_2_VF05MtGA5R6F472NnrZ2pIsZtne3_97GOSenrJ4QuoDa-xlCPEkaQ"
-// 	if token == "" {
-// 		return fmt.Errorf("AZURE_TOKEN environment variable not set")
-// 	}
-// 	fmt.Println("[DEBUG] token length:", len(token))
-// 	if len(token) < 100 {
-// 		fmt.Println("[WARN] Azure token seems suspiciously short")
-// 	}
-
-// 	req, err := http.NewRequest("POST", url, nil)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to create HTTP request: %w", err)
-
-// 	}
-// 	req.Header.Add("Authorization", "Bearer "+token)
-// 	req.Header.Add("Content-Type", "application/json")
-
-// 	fmt.Println("[DEBUG] Request Headers:")
-// 	for k, v := range req.Header {
-// 		fmt.Printf("  %s: %s\n", k, v)
-// 	}
-
-// 	client := &http.Client{}
-// 	resp, err := client.Do(req)
-// 	if err != nil {
-// 		return fmt.Errorf("HTTP request failed: %w", err)
-// 	}
-// 	defer resp.Body.Close()
-
-// 	fmt.Println("[DEBUG] Response status:", resp.Status)
-
-// 	if resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusNoContent {
-// 		return fmt.Errorf("abort failed: %s", resp.Status)
-// 	}
-
-// 	return nil
-// }
-
 func abortLatestAKSOperation(ctx context.Context, resourceGroupName, clusterName string) error {
 	// 1. Read the subscription ID from the environment
 	subID := subscriptionID
@@ -161,18 +114,18 @@ func (r *WorkloadReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	// Check if this workload has been evaluated before - if not, set default healthy state
 	if !workload.Status.Evaluated {
 		log.Info("Initializing workload status to healthy", "JobName", workload.Spec.JobName)
-		
+
 		// Set the workload as healthy by default when first created
 		workload.Status.Health = true
 		// Mark as evaluated so we don't reinitialize on subsequent reconciliations
 		workload.Status.Evaluated = true
-		
+
 		// Persist the status changes to the Kubernetes API server
 		if err := r.Status().Update(ctx, &workload); err != nil {
 			log.Error(err, "Failed to initialize workload status")
 			return ctrl.Result{}, err
 		}
-		
+
 		// Requeue the reconciliation to process the workload with its new status
 		// This ensures the next reconciliation cycle will see the initialized status
 		return ctrl.Result{Requeue: true}, nil

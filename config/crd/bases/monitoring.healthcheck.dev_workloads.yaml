@@ -42,6 +42,20 @@ spec:
               jobName:
                 description: INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
                 type: string
+              thresholds:
+                properties:
+                  cpuUsageNano:
+                    format: int64
+                    type: integer
+                  maxPendingTime:
+                    type: string
+                  maxRestartCount:
+                    format: int32
+                    type: integer
+                  memoryUsageBytes:
+                    format: int64
+                    type: integer
+                type: object
             required:
             - jobName
             type: object
