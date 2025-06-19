@@ -1,40 +1,95 @@
-# aks-health-guard
-// TODO(user): Add simple overview of use/purpose
+# AKS Health Guard
 
-## Steps for Demo (June 19, 2025)
-1.	“az login”
-2.	Create a resource group and cluster, and run “az aks get-credentials”
-    a.	The following is what I write:
-        az group create --name aks-health-rg --location westus
-        az aks create --resource-group aks-health-rg --name aks-health-cluster --node-count 1 --generate-ssh-keys
-        az aks get-credentials --resource-group aks-health-rg --name aks-health-cluster
-3.	Change constant variables “subscriptionID,” “tenantID,” “resourceGroupName,” and “clusterName” (in workload_controller.go) / “resourceName” (in detector.go) to your IDs and names of the RG and cluster you just created
-4.  Add your thresholds to the metrics in the workload spec. If you don't want to use a certain metric, simply delete it.
-5.	Then apply the workload yaml file and the pods (found under config/samples/).
-    a.	These pods are made to be unhealthy so the detector can catch this. 
-    b.	Here’s what I write:
-        kubectl apply -f config/samples/monitoring_v1_workload.yaml
-        kubectl apply -f config/samples/crash-pod.yaml
-        kubectl apply -f config/samples/pending-pod.yaml
-        kubectl apply -f config/samples/active-metrics-pod.yaml
-6.	Make sure the health is “true” (meaning it’s healthy)
-    a.	You can run this command to patch the health:
-        kubectl patch workload workload-sample --type=merge -p '{"status":{"health":true,"evaluated":false}}' --subresource=status
-7.	Run “make install”
-8.	Run a long-running operation and wait until it says “running” with the spinning line
-    a.	I use this command, since I have ran out of upgrades:
-        az aks update --resource-group aks-health-rg --name aks-health-cluster --tags testRun=$(date +%s)
-    b.	You can check if it’s currently running if you run this command:
-        az aks show --resource-group aks-health-rg --name aks-health-cluster --query "provisioningState" --output tsv
-9.	Run “make run” while the long-running operation is running
-    a.	You should see the workload as healthy first
-    b.	Then, every thirty seconds, it should detect if any of the pods are unhealthy (either CPU/Memory storage is too high or a pod is crashed or the pending state is too long)
-    c.	Next, it will attempt to abort your current operation
-    d.	It should say “Successfully aborted latest AKS operation”
+A Kubernetes controller that monitors AKS cluster health and automatically aborts long-running operations when unhealthy conditions are detected.
 
+## Overview
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+AKS Health Guard continuously monitors your Azure Kubernetes Service (AKS) cluster for unhealthy conditions such as:
+- High CPU/Memory usage
+- Crashed pods
+- Pods stuck in pending state
+
+When unhealthy conditions are detected during long-running AKS operations, the controller automatically aborts the operation to prevent further issues.
+
+## Demo Instructions (June 19, 2025)
+
+### Step 1: Login to Azure
+```sh
+az login
+```
+
+### Step 2: Create AKS Resources
+Create a resource group and cluster, then configure kubectl:
+
+```sh
+# Create resource group
+az group create --name aks-health-rg --location westus
+
+# Create AKS cluster
+az aks create --resource-group aks-health-rg --name aks-health-cluster --node-count 1 --generate-ssh-keys
+
+# Get cluster credentials
+az aks get-credentials --resource-group aks-health-rg --name aks-health-cluster
+```
+
+### Step 3: Configure Application Settings
+Update the following constants in your code with your Azure resource details:
+- In `workload_controller.go`: `subscriptionID`, `tenantID`, `resourceGroupName`, and `clusterName`
+- In `detector.go`: `subscriptionID`, `tenantID`, `resourceGroupName`, and `resourceName`
+
+### Step 4: Configure Health Thresholds
+Add your desired thresholds to the metrics in the workload spec. Remove any metrics you don't want to monitor.
+
+### Step 5: Deploy Test Resources
+Apply the workload configuration and deploy test pods (designed to be unhealthy for demonstration):
+
+```sh
+# Deploy workload configuration
+kubectl apply -f config/samples/monitoring_v1_workload.yaml
+
+# Deploy test pods
+kubectl apply -f config/samples/crash-pod.yaml
+kubectl apply -f config/samples/pending-pod.yaml
+kubectl apply -f config/samples/active-metrics-pod.yaml
+```
+
+### Step 6: Set Initial Health Status
+Ensure the workload health is set to "true" (healthy):
+
+```sh
+kubectl patch workload workload-sample --type=merge -p '{"status":{"health":true,"evaluated":false}}' --subresource=status
+```
+
+### Step 7: Install the Controller
+```sh
+make install
+```
+
+### Step 8: Start a Long-Running Operation
+Begin a long-running AKS operation and wait for it to show "running" status:
+
+```sh
+# Example: Update cluster with timestamp tag
+az aks update --resource-group aks-health-rg --name aks-health-cluster --tags testRun=$(date +%s)
+```
+
+Check if the operation is running:
+```sh
+az aks show --resource-group aks-health-rg --name aks-health-cluster --query "provisioningState" --output tsv
+```
+
+### Step 9: Run the Health Monitor
+While the long-running operation is active:
+
+```sh
+make run
+```
+
+**Expected behavior:**
+1. Workload initially shows as healthy
+2. Every 30 seconds, detector checks for unhealthy conditions
+3. When unhealthy pods are detected, attempts to abort the current operation
+4. Should display "Successfully aborted latest AKS operation"
 
 ## Getting Started
 
