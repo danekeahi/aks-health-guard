@@ -1,6 +1,38 @@
 # aks-health-guard
 // TODO(user): Add simple overview of use/purpose
 
+## Steps for Demo (June 19, 2025)
+1.	“az login”
+2.	Create a resource group and cluster, and run “az aks get-credentials”
+    a.	The following is what I write:
+        az group create --name aks-health-rg --location westus
+        az aks create --resource-group aks-health-rg --name aks-health-cluster --node-count 1 --generate-ssh-keys
+        az aks get-credentials --resource-group aks-health-rg --name aks-health-cluster
+3.	Change constant variables “subscriptionID,” “tenantID,” “resourceGroupName,” and “clusterName” (in workload_controller.go) / “resourceName” (in detector.go) to your IDs and names of the RG and cluster you just created
+4.  Add your thresholds to the metrics in the workload spec. If you don't want to use a certain metric, simply delete it.
+5.	Then apply the workload yaml file and the pods (found under config/samples/).
+    a.	These pods are made to be unhealthy so the detector can catch this. 
+    b.	Here’s what I write:
+        kubectl apply -f config/samples/monitoring_v1_workload.yaml
+        kubectl apply -f config/samples/crash-pod.yaml
+        kubectl apply -f config/samples/pending-pod.yaml
+        kubectl apply -f config/samples/active-metrics-pod.yaml
+6.	Make sure the health is “true” (meaning it’s healthy)
+    a.	You can run this command to patch the health:
+        kubectl patch workload workload-sample --type=merge -p '{"status":{"health":true,"evaluated":false}}' --subresource=status
+7.	Run “make install”
+8.	Run a long-running operation and wait until it says “running” with the spinning line
+    a.	I use this command, since I have ran out of upgrades:
+        az aks update --resource-group aks-health-rg --name aks-health-cluster --tags testRun=$(date +%s)
+    b.	You can check if it’s currently running if you run this command:
+        az aks show --resource-group aks-health-rg --name aks-health-cluster --query "provisioningState" --output tsv
+9.	Run “make run” while the long-running operation is running
+    a.	You should see the workload as healthy first
+    b.	Then, every thirty seconds, it should detect if any of the pods are unhealthy (either CPU/Memory storage is too high or a pod is crashed or the pending state is too long)
+    c.	Next, it will attempt to abort your current operation
+    d.	It should say “Successfully aborted latest AKS operation”
+
+
 ## Description
 // TODO(user): An in-depth paragraph about your project and overview of use
 
