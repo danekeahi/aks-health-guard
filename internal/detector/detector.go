@@ -3,6 +3,7 @@ package detector
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	kubeclientcmd "k8s.io/client-go/tools/clientcmd"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metricsv1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	metricsclient "k8s.io/metrics/pkg/client/clientset/versioned"
 )
@@ -39,8 +41,8 @@ var (
 type PodMetrics struct {
 	PodName         string
 	Namespace       string
-	CPUUsage        string // e.g. "50m"
-	MemoryUsage     string // e.g. "128Mi"
+	CPUUsage        string
+	MemoryUsage     string
 	RestartCount    int32
 	IsCrashed       bool
 	PendingDuration time.Duration
@@ -68,7 +70,7 @@ func checkAndUpdateWorkloadHealth(c client.Client) {
 	ctx := context.Background()
 	var workloadList monitoringv1.WorkloadList
 
-	// Get Kubernetes kubeClient and restConfig
+	// Initialize Kubernetes and Metrics clients
 	kubeClient, restConfig, err := getKubeClient()
 	if err != nil {
 		fmt.Println("Failed to get Kubernetes client:", err)
@@ -76,39 +78,30 @@ func checkAndUpdateWorkloadHealth(c client.Client) {
 	}
 	fmt.Println("Successfully connected to Kubernetes cluster")
 
-	// Create a metrics client (for CPU and memory usage)
-	// Note: Ensure the metrics server is running in your cluster
-	// You can run "kubectl get deployment metrics-server -n kube-system" to check if the metrics server is running"
 	metricsClient, err := getMetricsClient(restConfig)
 	if err != nil {
 		fmt.Println("Failed to create metrics client:", err)
 		return
-	} else {
-		metrics, err := getPodMetrics(kubeClient, metricsClient, "default")
-		if err != nil {
-			fmt.Println("Error gathering pod metrics:", err)
-		} else {
-			// I think change later
-			for _, m := range metrics {
-				fmt.Printf("%+v\n", m)
-			}
-		}
 	}
 
-	// List all workloads
+	metrics, err := getPodMetrics(kubeClient, metricsClient, "default")
+	if err != nil {
+		fmt.Println("Error gathering pod metrics:", err)
+		return
+	}
+
+	// List all workloads of kind Workload
 	if err := c.List(ctx, &workloadList); err != nil {
 		fmt.Println("Failed to list workloads:", err)
 		return
 	}
 
-	// Iterate through each workload and check its health
+	// Check each workload and update its health status
 	for _, wl := range workloadList.Items {
-		isHealthy := checkPodHealth(kubeClient, wl.Spec.JobName)
-
-		// Update the workload health status if it has changed
-		if wl.Spec.Health != isHealthy {
-			wl.Spec.Health = isHealthy
-			if err := c.Update(ctx, &wl); err != nil {
+		isHealthy := checkPodHealth(metrics, wl.Spec.JobName, wl.Spec.Thresholds)
+		if wl.Status.Health != isHealthy {
+			wl.Status.Health = isHealthy
+			if err := c.Status().Update(ctx, &wl); err != nil {
 				fmt.Println("Failed to update workload health:", err)
 			} else {
 				fmt.Printf("Updated %s health to %v\n", wl.Name, isHealthy)
@@ -117,12 +110,12 @@ func checkAndUpdateWorkloadHealth(c client.Client) {
 	}
 }
 
-// Get a metrics client from the Kubernetes rest.Config
+// getMetricsClient returns a new metrics client
 func getMetricsClient(config *rest.Config) (*metricsclient.Clientset, error) {
 	return metricsclient.NewForConfig(config)
 }
 
-// getKubeClient initializes and returns a Kubernetes clientset
+// getKubeClient initializes and returns a Kubernetes clientset using Azure credentials
 func getKubeClient() (*kubernetes.Clientset, *rest.Config, error) {
 	var err error
 	kubeClientOnce.Do(func() {
@@ -150,7 +143,7 @@ func getKubeClient() (*kubernetes.Clientset, *rest.Config, error) {
 			return
 		}
 
-		restConfig, e = clientConfig.ClientConfig() // <-- set global here
+		restConfig, e = clientConfig.ClientConfig()
 		if e != nil {
 			err = e
 			return
@@ -162,7 +155,7 @@ func getKubeClient() (*kubernetes.Clientset, *rest.Config, error) {
 	return kubeClient, restConfig, err
 }
 
-// getPodMetrics retrieves metrics for all pods in a given namespace
+// getPodMetrics collects metrics and basic health data for all pods in a namespace
 func getPodMetrics(kubeClient *kubernetes.Clientset, metricsClient *metricsclient.Clientset, namespace string) ([]PodMetrics, error) {
 	ctx := context.Background()
 	var results []PodMetrics
@@ -191,19 +184,25 @@ func getPodMetrics(kubeClient *kubernetes.Clientset, metricsClient *metricsclien
 			RestartCount: 0,
 		}
 
+		// Aggregate restart count and check for crash-loop
 		for _, cs := range pod.Status.ContainerStatuses {
 			m.RestartCount += cs.RestartCount
+			if cs.State.Waiting != nil && cs.State.Waiting.Reason == "CrashLoopBackOff" {
+				m.IsCrashed = true
+			}
 		}
 
+		// Capture pending duration
 		if pod.Status.Phase == corev1.PodPending {
 			m.PendingDuration = now.Sub(pod.CreationTimestamp.Time)
 		}
 
+		// Extract CPU and memory usage
 		if podMetrics, exists := metricsMap[pod.Name]; exists {
 			for _, container := range podMetrics.Containers {
 				m.CPUUsage = container.Usage.Cpu().String()
 				m.MemoryUsage = container.Usage.Memory().String()
-				break // Assuming single container per pod; adjust if needed
+				break
 			}
 		}
 
@@ -213,35 +212,53 @@ func getPodMetrics(kubeClient *kubernetes.Clientset, metricsClient *metricsclien
 	return results, nil
 }
 
-// checkPodHealth checks the health of pods associated with a specific job
-func checkPodHealth(client *kubernetes.Clientset, jobName string) bool {
+// checkPodHealth evaluates the workload health by checking metrics against thresholds
+func checkPodHealth(metrics []PodMetrics, jobName string, thresholds monitoringv1.Thresholds) bool {
 	fmt.Println("Checking health for job:", jobName)
-	// List all pods in the cluster
-	pods, err := client.CoreV1().Pods("").List(context.Background(), metav1.ListOptions{})
-	if err != nil {
-		fmt.Println("Error listing pods:", err)
-		return true // Assume healthy if we can't check
-	}
 
-	// Check each pod for health status
-	for _, pod := range pods.Items {
-		fmt.Println("Checking pod:", pod.Name, "with labels:", pod.Labels)
-		// Check if the pod belongs to the specified job
-		// Assuming the job name is stored in the "job-name" label
-		if pod.Labels["job-name"] != jobName {
+	totalCrashed := 0
+
+	for _, m := range metrics {
+		// Only check pods that match the given job name (inferred by name substring)
+		if !strings.Contains(m.PodName, jobName) {
 			continue
 		}
 
-		// Check if the pod is in a healthy state
-		if pod.Status.Phase == "Failed" || pod.Status.Phase == "Unknown" {
-			fmt.Println("Pod is in Failed or Unknown state:", pod.Name)
+		// CPU usage check
+		if m.CPUUsage != "" && thresholds.CPUUsageNano > 0 {
+			cpuQty, err := resource.ParseQuantity(m.CPUUsage)
+			if err == nil && cpuQty.MilliValue()*1_000_000 > thresholds.CPUUsageNano {
+				fmt.Printf("Pod %s CPU usage too high: %s\n", m.PodName, m.CPUUsage)
+				return false
+			}
+		}
+
+		// Memory usage check
+		if m.MemoryUsage != "" && thresholds.MemoryUsageBytes > 0 {
+			memQty, err := resource.ParseQuantity(m.MemoryUsage)
+			if err == nil && memQty.Value() > thresholds.MemoryUsageBytes {
+				fmt.Printf("Pod %s memory usage too high: %s\n", m.PodName, m.MemoryUsage)
+				return false
+			}
+		}
+
+		// Restart count check
+		if thresholds.MaxRestartCount > 0 && m.RestartCount > thresholds.MaxRestartCount {
+			fmt.Printf("Pod %s has too many restarts: %d\n", m.PodName, m.RestartCount)
 			return false
 		}
 
-		// Check if the pod is pending for too long
-		for _, cs := range pod.Status.ContainerStatuses {
-			if cs.State.Waiting != nil && cs.State.Waiting.Reason == "CrashLoopBackOff" {
-				fmt.Println("Container is in CrashLoopBackOff state:", cs.Name, "in pod", pod.Name)
+		// Pending duration check
+		if m.PendingDuration > 0 && thresholds.MaxPendingTime.Duration > 0 && m.PendingDuration > thresholds.MaxPendingTime.Duration {
+			fmt.Printf("Pod %s has been pending too long: %v\n", m.PodName, m.PendingDuration)
+			return false
+		}
+
+		// Crashed pods number check
+		if m.IsCrashed {
+			totalCrashed++
+			if thresholds.MaxCrashedPods > 0 && totalCrashed > thresholds.MaxCrashedPods {
+				fmt.Printf("Too many crashed pods: %d > %d\n", totalCrashed, thresholds.MaxCrashedPods)
 				return false
 			}
 		}
